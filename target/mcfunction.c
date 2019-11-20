@@ -232,11 +232,13 @@ static void mcf_emit_inst(Inst* inst) {
   was_jump = 0;
   switch (inst->op) {
     case MOV: {
+      if (inst->dst.reg == 6) was_jump = 1;
       mcf_emit_set_reg(reg_names[inst->dst.reg], &inst->src);
       break;
     }
 
     case ADD: {
+      if (inst->dst.reg == 6) was_jump = 1;
       const char* dst = reg_names[inst->dst.reg];
       if (inst->src.type == IMM) {
         if (inst->src.imm & UINT_MAX) {
@@ -253,6 +255,7 @@ static void mcf_emit_inst(Inst* inst) {
     }
 
     case SUB: {
+      if (inst->dst.reg == 6) was_jump = 1;
       const char* dst = reg_names[inst->dst.reg];
       if (inst->src.type == IMM) {
         if (inst->src.imm & UINT_MAX) {
@@ -269,6 +272,7 @@ static void mcf_emit_inst(Inst* inst) {
     }
 
     case LOAD: {
+      if (inst->dst.reg == 6) was_jump = 1;
       mcf_emit_mem_table_load(&inst->src);
       mcf_emit_line(SPO "ELVM %s = ELVM elvm_mem_res", reg_names[inst->dst.reg]);
       break;
@@ -280,6 +284,7 @@ static void mcf_emit_inst(Inst* inst) {
     }
 
     case EXIT: {
+      was_jump = 1;
       mcf_emit_line(SPS "ELVM elvm_pc -1");
       break;
     }
@@ -324,6 +329,7 @@ static void mcf_emit_inst(Inst* inst) {
     }
 
     case JMP: {
+      was_jump = 1;
       mcf_emit_set_reg("elvm_pc", &inst->jmp);
       break;
     }
