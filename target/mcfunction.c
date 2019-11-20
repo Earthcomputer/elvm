@@ -18,11 +18,12 @@ static const char* MCFUNCTION_REG_NAMES[7] = { "elvm_a", "elvm_b", "elvm_c", "el
 
 static const char* prefix = "";
 
-static void mcf_emit_line(const char* line, ...) {
+static void mcf_emit_line(const char* fmt, ...) {
   va_list ap;
-  va_start(ap, line);
-  emit_line("%s%s", prefix, format(line, ap));
+  va_start(ap, fmt);
+  const char* line = vformat(fmt, ap);
   va_end(ap);
+  emit_line("%s%s", prefix, line);
 }
 
 static void mcf_emit_function_header(const char *name) {
@@ -213,7 +214,7 @@ static void mcf_emit_test(Inst* inst, const char* cmd_when_false, const char* cm
   }
 }
 
-bool was_jump = 0;
+bool was_jump = 1;
 
 static void mcf_emit_func_prologue(int func_id) {
   mcf_emit_function_header(format("elvm:func%d", func_id));
