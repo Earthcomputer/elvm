@@ -198,7 +198,7 @@ static void define_flush_function() {
   mcf_emit_function_header("elvm:flush");
   emit_line("execute store result score ELVM elvm_mem_val run " DGS "stdout");
   emit_line("function elvm:flush_0_256");
-  emit_line("execute if score ELVM elvm_mem_val matches 257.. " SPS "ELVM elvm_mem_val -1");
+  emit_line("execute if score ELVM elvm_mem_val matches 256.. run " SPS "ELVM elvm_mem_val -1");
   emit_line("execute if score ELVM elvm_mem_val matches -1 run function elvm:flush256");
   emit_line("execute if score ELVM elvm_mem_val matches ..-1 run function elvm:flush");
   define_flush256();
@@ -353,6 +353,8 @@ static void mcf_emit_inst(Inst* inst) {
     case JMP: {
       was_jump = 1;
       mcf_emit_set_reg("elvm_pc", &inst->jmp);
+      if (inst->jmp.type == IMM)
+        emit_line("function elvm:func_%d", inst->jmp.imm);
       break;
     }
 
