@@ -93,7 +93,7 @@ static void define_shiftmem_func(const char* name, const char* mem_func) {
   mcf_emit_function_header(format("elvm:%s", name));
   emit_line(DMS "mem_tmp append from storage elvm:elvm mem[0]");
   emit_line(DRS "mem[0]");
-  emit_line(SPR "elvm_mem_idx 1");
+  emit_line(SPR "ELVM elvm_mem_idx 1");
   emit_line("function elvm:%s", mem_func);
   emit_line(DMS "mem prepend from storage elvm:elvm mem_tmp[-1]");
 }
