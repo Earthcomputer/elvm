@@ -16,6 +16,11 @@
 
 static const char* MCFUNCTION_REG_NAMES[7] = { "elvm_a", "elvm_b", "elvm_c", "elvm_d", "elvm_bp", "elvm_sp", "elvm_pc" };
 
+static bool used_mem_table_store = 0;
+static bool used_mem_table_load = 0;
+static bool used_chr_function = 0;
+static bool used_flush_function = 0;
+
 static void mcf_char_to_string(char c, char* out) {
   if ((c >= 0 && c < 32) || c == 127)
     c = ' ';
@@ -49,6 +54,7 @@ static void mcf_emit_set_reg(const char *reg, Value *value) {
 }
 
 static void mcf_emit_mem_table_store(Value *addr, Value *value) {
+  used_mem_table_store = 1;
   mcf_emit_set_reg("elvm_mem_val", value);
   mcf_emit_set_reg("elvm_mem_addr", addr);
   if (addr->type == REG) {
@@ -63,6 +69,7 @@ static void mcf_emit_mem_table_store(Value *addr, Value *value) {
 }
 
 static void mcf_emit_mem_table_load(Value* addr) {
+  used_mem_table_load = 1;
   mcf_emit_set_reg("elvm_mem_addr", addr);
   if (addr->type == REG) {
     mcf_emit_set_reg("elvm_mem_idx", addr);
@@ -303,6 +310,7 @@ static void mcf_emit_inst(Inst* inst) {
       if (inst->src.type == IMM) {
         int val = inst->src.imm;
         if (val == '\n') {
+          used_flush_function = 1;
           emit_line("function elvm:flush");
         } else {
           char ch[3];
@@ -310,6 +318,8 @@ static void mcf_emit_inst(Inst* inst) {
           emit_line(DMS "stdout append value \"%s\"", ch);
         }
       } else {
+        used_chr_function = 1;
+        used_flush_function = 1;
         mcf_emit_set_reg("elvm_mem_val", &inst->src);
         emit_line("execute if score ELVM elvm_mem_val matches 10 run function elvm:flush");
         emit_line("execute unless score ELVM elvm_mem_val matches 10 run function elvm:chr");
@@ -437,21 +447,28 @@ static void emit_pc_search_function(int min, int max) {
 }
 
 static void define_utility_functions() {
-  define_mem_func("storemem", "storememsh", "safestorebin");
-  define_shiftmem_func("storememsh", "storemem");
-  define_safebin_func("safestorebin", "storebin", "run function elvm:storeval");
-  define_bin_func("storebin", "storebinsh", "store result storage elvm:elvm mem[0][0].v int 1 run " SPG "ELVM elvm_mem_val");
-  define_shiftbin_func("storebinsh", "safestorebin");
-  define_storeval_func();
+  if (used_mem_table_store) {
+    define_mem_func("storemem", "storememsh", "safestorebin");
+    define_shiftmem_func("storememsh", "storemem");
+    define_safebin_func("safestorebin", "storebin", "run function elvm:storeval");
+    define_bin_func("storebin", "storebinsh",
+                    "store result storage elvm:elvm mem[0][0].v int 1 run " SPG "ELVM elvm_mem_val");
+    define_shiftbin_func("storebinsh", "safestorebin");
+    define_storeval_func();
+  }
 
-  define_mem_func("loadmem", "loadmemsh", "safeloadbin");
-  define_shiftmem_func("loadmemsh", "loadmem");
-  define_bin_func("safeloadbin", "loadbin", "run " SPS "ELVM elvm_mem_res 0");
-  define_bin_func("loadbin", "loadbinsh", "store result score ELVM elvm_mem_res run " DGS "mem[0][0].v");
-  define_shiftbin_func("loadbinsh", "safeloadbin");
+  if (used_mem_table_load) {
+    define_mem_func("loadmem", "loadmemsh", "safeloadbin");
+    define_shiftmem_func("loadmemsh", "loadmem");
+    define_bin_func("safeloadbin", "loadbin", "run " SPS "ELVM elvm_mem_res 0");
+    define_bin_func("loadbin", "loadbinsh", "store result score ELVM elvm_mem_res run " DGS "mem[0][0].v");
+    define_shiftbin_func("loadbinsh", "safeloadbin");
+  }
 
-  define_chr_function(0, 256);
-  define_flush_function();
+  if (used_chr_function)
+    define_chr_function(0, 256);
+  if (used_flush_function)
+    define_flush_function();
 }
 
 void target_mcfunction(Module* module) {
