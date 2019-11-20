@@ -378,7 +378,7 @@ static void emit_main_function(Data* data) {
   chr[0] = '[';
   for (int i = 0; i < 256; i++) {
     chr[4 * i + 1] = '"';
-    chr[4 * i + 2] = i < 32 ? ' ' : i < 127 ? (char)i : ;
+    chr[4 * i + 2] = i < 32 || i == 127 ? (char)' ' : (char)i;
     chr[4 * i + 3] = '"';
     chr[4 * i + 4] = ',';
   }
