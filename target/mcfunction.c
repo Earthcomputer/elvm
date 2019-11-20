@@ -18,6 +18,24 @@ static const char* MCFUNCTION_REG_NAMES[7] = { "elvm_a", "elvm_b", "elvm_c", "el
 
 static const char* prefix = "";
 
+static void mcf_char_to_string(char c, char* out) {
+  if ((c >= 0 && c < 32) || c == 127)
+    c = ' ';
+
+  if (c == '"' || c == '\\') {
+    out[0] = '\\';
+    out[1] = c;
+    out[2] = '\0';
+  } else if (!(c & 0x80)) {
+    out[0] = c;
+    out[1] = '\0';
+  } else {
+    out[0] = (char)0xc0 | (char)(((unsigned)c & 0xff) >> 6);
+    out[1] = (char)0x80 | (c & (char)0x3f);
+    out[2] = '\0';
+  }
+}
+
 static void mcf_emit_line(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -119,8 +137,11 @@ static void define_chr_function(int min, int max) {
   else
     mcf_emit_function_header(format("elvm:chr_%d_%d", min, max));
   if (range == 2) {
-    emit_line("execute if score ELVM elvm_mem_val matches %d run " DMS "chr set value \"%c\"", min, min == 127 ? ' ' : (char)min);
-    emit_line("execute if score ELVM elvm_mem_val matches %d run " DMS "chr set value \"%c\"", mid, mid == 127 ? ' ' : (char)mid);
+    char ch[3];
+    mcf_char_to_string((char)min, ch);
+    emit_line("execute if score ELVM elvm_mem_val matches %d run " DMS "chr set value \"%s\"", min, ch);
+    mcf_char_to_string((char)mid, ch);
+    emit_line("execute if score ELVM elvm_mem_val matches %d run " DMS "chr set value \"%s\"", mid, ch);
   } else {
     if (mid <= 32)
       emit_line("execute if score ELVM elvm_mem_val matches %d..%d run " DMS "chr set value \" \"", min, mid-1);
@@ -140,7 +161,7 @@ static void get_json_string(int len, char* out) {
   out[i++] = '[';
   for (int j = 0; j < len; j++) {
     const char* val = format("%s{\"storage\":\"elvm:elvm\",\"nbt\":\"stdout[%d]\"}", j == 0 ? "" : ",", j);
-    for (; val; val++)
+    for (; *val; val++)
       out[i++] = *val;
   }
   out[i++] = ']';
@@ -296,7 +317,9 @@ static void mcf_emit_inst(Inst* inst) {
         if (val == '\n') {
           mcf_emit_line("function elvm:flush");
         } else {
-          mcf_emit_line(DMS "stdout append value \"%c\"", val <= 32 || val == 127 ? ' ' : (char)val);
+          char ch[3];
+          mcf_char_to_string((char)val, ch);
+          mcf_emit_line(DMS "stdout append value \"%s\"", ch);
         }
       } else {
         mcf_emit_set_reg("elvm_mem_val", &inst->src);
@@ -379,16 +402,21 @@ static void emit_main_function(Data* data) {
   emit_line(SOA "elvm_uint_max dummy");
   emit_line(SPS "ELVM elvm_uint_max %d", UINT_MAX + 1);
 
-  char chr[1026];
-  chr[0] = '[';
-  for (int i = 0; i < 256; i++) {
-    chr[4 * i + 1] = '"';
-    chr[4 * i + 2] = i < 32 || i == 127 ? (char)' ' : (char)i;
-    chr[4 * i + 3] = '"';
-    chr[4 * i + 4] = ',';
+  char chr[1156];
+  int i = 0;
+  chr[i++] = '[';
+  for (int c = 0; c < 256; c++) {
+    if (c != 0)
+      chr[i++] = ',';
+    chr[i++] = '"';
+    char ch[3];
+    mcf_char_to_string((char)c, ch);
+    for (int j = 0; ch[j]; j++)
+      chr[i++] = ch[j];
+    chr[i++] = '"';
   }
-  chr[1024] = ']';
-  chr[1025] = '\0';
+  chr[i++] = ']';
+  chr[i] = '\0';
   emit_line(DMS "chr set value %s", chr);
   emit_line(DMS "stdout set value []");
 
