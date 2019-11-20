@@ -213,6 +213,8 @@ static void mcf_emit_test(Inst* inst, const char* cmd_when_false, const char* cm
   }
 }
 
+bool was_jump = 0;
+
 static void mcf_emit_func_prologue(int func_id) {
   mcf_emit_function_header(format("elvm:func%d", func_id));
 }
@@ -221,10 +223,13 @@ static void mcf_emit_func_epilogue() {
 }
 
 static void mcf_emit_pc_change(int pc) {
+  if (!was_jump)
+    mcf_emit_line(SPA "ELVM elvm_pc 1");
   prefix = format("execute if score ELVM elvm_pc matches %d run ", pc);
 }
 
 static void mcf_emit_inst(Inst* inst) {
+  was_jump = 0;
   switch (inst->op) {
     case MOV: {
       mcf_emit_set_reg(reg_names[inst->dst.reg], &inst->src);
@@ -244,7 +249,6 @@ static void mcf_emit_inst(Inst* inst) {
         mcf_emit_line(SPO "ELVM %s += ELVM %s", dst, reg_names[inst->src.reg]);
       }
       mcf_emit_line(SPO "ELVM %s %%= ELVM elvm_uint_max", dst);
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
@@ -261,20 +265,17 @@ static void mcf_emit_inst(Inst* inst) {
         mcf_emit_line(SPO "ELVM %s -= ELVM %s", dst, reg_names[inst->src.reg]);
       }
       mcf_emit_line(SPO "ELVM %s %%= ELVM elvm_uint_max");
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
     case LOAD: {
       mcf_emit_mem_table_load(&inst->src);
       mcf_emit_line(SPO "ELVM %s = ELVM elvm_mem_res", reg_names[inst->dst.reg]);
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
     case STORE: {
       mcf_emit_mem_table_store(&inst->src, &inst->dst);
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
@@ -297,18 +298,15 @@ static void mcf_emit_inst(Inst* inst) {
         mcf_emit_line("execute unless score ELVM elvm_mem_val matches 10 run function elvm:chr");
         mcf_emit_line("execute unless score ELVM elvm_mem_val matches 10 run " DMS "stdout append from storage elvm:elvm chr");
       }
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
     case GETC: {
       /* TODO: implement */
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
     case DUMP: {
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
@@ -322,7 +320,6 @@ static void mcf_emit_inst(Inst* inst) {
                     SPS "ELVM elvm_tmp 0",
                     SPS "ELVM elvm_tmp 1");
       mcf_emit_line(SPO "ELVM %s = ELVM elvm_tmp", reg_names[inst->dst.reg]);
-      mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
 
@@ -337,6 +334,7 @@ static void mcf_emit_inst(Inst* inst) {
     case JLE:
     case JGT:
     case JGE: {
+      was_jump = 1;
       if (inst->jmp.type == IMM)
         mcf_emit_test(inst, SPA "ELVM elvm_pc 1", format(SPS "ELVM elvm_pc %d", inst->jmp.imm));
       else
