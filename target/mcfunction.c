@@ -416,7 +416,7 @@ static void emit_main_function(Data* data) {
     }
   }
 
-  emit_line("function elvm:loop");
+  emit_line("execute if score ELVM elvm_pc matches 0.. run function elvm:loop");
 }
 
 static void define_utility_functions() {
