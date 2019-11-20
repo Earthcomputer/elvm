@@ -10,12 +10,9 @@
 #define SPO "scoreboard players operation "
 #define DMS "data modify storage elvm:elvm "
 #define DGS "data get storage elvm:elvm "
-#define DRS "data modify remove "
+#define DRS "data remove storage elvm:elvm "
 
 #define MEM_PHI 27146105
-
-#define MIN_INT32 (-2147483648)
-#define MAX_INT32 2147483647
 
 static const char* MCFUNCTION_REG_NAMES[7] = { "elvm_a", "elvm_b", "elvm_c", "elvm_d", "elvm_bp", "elvm_sp", "elvm_pc" };
 
@@ -111,6 +108,82 @@ static void define_storeval_func() {
   emit_line(DMS "mem[0] append value {}");
   emit_line("execute store result storage elvm:elvm mem[0][0].a run " SPG "ELVM elvm_mem_addr");
   emit_line("execute store result storage elvm:elvm mem[0][0].v run " SPG "ELVM elvm_mem_val");
+}
+
+static void define_chr_function(int min, int max) {
+  int range = max - min;
+  int mid = min + range / 2;
+  if (range == 256)
+    mcf_emit_function_header("elvm:chr");
+  else
+    mcf_emit_function_header(format("elvm:chr_%d_%d", min, max));
+  if (range == 2) {
+    emit_line("execute if score ELVM elvm_mem_val matches %d run " DMS "chr set value \"%c\"", min, min == 127 ? ' ' : (char)min);
+    emit_line("execute if score ELVM elvm_mem_val matches %d run " DMS "chr set value \"%c\"", mid, mid == 127 ? ' ' : (char)mid);
+  } else {
+    if (mid <= 32)
+      emit_line("execute if score ELVM elvm_mem_val matches %d..%d run " DMS "chr set value \" \"", min, mid-1);
+    else
+      emit_line("execute if score ELVM elvm_mem_val matches %d..%d run function elvm:chr_%d_%d", min, mid-1, min, mid);
+    emit_line("execute if score ELVM elvm_mem_val matches %d..%d run function elvm:chr_%d_%d", mid, max-1, mid, max);
+    if (mid > 32)
+      define_chr_function(min, mid);
+    define_chr_function(mid, max);
+  }
+}
+
+char json_string[11156];
+
+static void get_json_string(int len, char* out) {
+  int i = 0;
+  out[i++] = '[';
+  for (int j = 0; j < len; j++) {
+    const char* val = format("%s{\"storage\":\"elvm:elvm\",\"nbt\":\"stdout[%d]\"}", j == 0 ? "" : ",", j);
+    for (; val; val++)
+      out[i++] = *val;
+  }
+  out[i++] = ']';
+  out[i] = '\0';
+}
+
+static void define_flush_function_recursive(int min, int max) {
+  int range = max - min;
+  int mid = min + range / 2;
+  mcf_emit_function_header(format("elvm:flush_%d_%d", min, max));
+  if (min == 0 && range == 4) {
+    for (int i = 1; i < 4; i++) {
+      get_json_string(i, json_string);
+      emit_line("execute if score ELVM elvm_mem_val matches %d run tellraw @a %s", i, json_string);
+    }
+  } else if (range == 2) {
+    get_json_string(min, json_string);
+    emit_line("execute if score ELVM elvm_mem_val matches %d run tellraw @a %s", min, json_string);
+    get_json_string(mid, json_string);
+    emit_line("execute if score ELVM elvm_mem_val matches %d run tellraw @a %s", mid, json_string);
+  } else {
+    emit_line("execute if score ELVM elvm_mem_val matches %d..%d run function elvm:flush_%d_%d", min, mid-1, min, mid);
+    emit_line("execute if score ELVM elvm_mem_val matches %d..%d run function elvm:flush_%d_%d", mid, max-1, mid, max);
+    define_flush_function_recursive(min, mid);
+    define_flush_function_recursive(mid, max);
+  }
+}
+
+static void define_flush256() {
+  mcf_emit_function_header("elvm:flush256");
+  emit_line(DRS "stdout[0]");
+  emit_line(SPR "ELVM elvm_mem_val 1");
+  emit_line("execute if score ELVM elvm_mem_val matches -256.. run elvm:flush256");
+}
+
+static void define_flush_function() {
+  mcf_emit_function_header("elvm:flush");
+  emit_line("execute store result score ELVM elvm_mem_val run " DGS "stdout");
+  emit_line("function elvm:flush_0_256");
+  emit_line("execute if score ELVM elvm_mem_val matches 257.. " SPS "ELVM elvm_mem_val -1");
+  emit_line("execute if score ELVM elvm_mem_val matches -1 run function elvm:flush256");
+  emit_line("execute if score ELVM elvm_mem_val matches ..-1 run function elvm:flush");
+  define_flush256();
+  define_flush_function_recursive(0, 256);
 }
 
 
@@ -211,7 +284,19 @@ static void mcf_emit_inst(Inst* inst) {
     }
 
     case PUTC: {
-      /* TODO: implement */
+      if (inst->src.type == IMM) {
+        int val = inst->src.imm;
+        if (val == '\n') {
+          mcf_emit_line("function elvm:flush");
+        } else {
+          mcf_emit_line(DMS "stdout append value \"%c\"", val <= 32 || val == 127 ? ' ' : (char)val);
+        }
+      } else {
+        mcf_emit_set_reg("elvm_mem_val", &inst->src);
+        mcf_emit_line("execute if score ELVM elvm_mem_val matches 10 run function elvm:flush");
+        mcf_emit_line("execute unless score ELVM elvm_mem_val matches 10 run function elvm:chr");
+        mcf_emit_line("execute unless score ELVM elvm_mem_val matches 10 run " DMS "stdout append from storage elvm:elvm chr");
+      }
       mcf_emit_line(SPA "ELVM elvm_pc 1");
       break;
     }
@@ -289,6 +374,19 @@ static void emit_main_function(Data* data) {
   emit_line(SOA "elvm_uint_max dummy");
   emit_line(SPS "ELVM elvm_uint_max %d", UINT_MAX + 1);
 
+  char chr[1026];
+  chr[0] = '[';
+  for (int i = 0; i < 256; i++) {
+    chr[4 * i + 1] = '"';
+    chr[4 * i + 2] = i < 32 ? ' ' : i < 127 ? (char)i : ;
+    chr[4 * i + 3] = '"';
+    chr[4 * i + 4] = ',';
+  }
+  chr[1024] = ']';
+  chr[1025] = '\0';
+  emit_line(DMS "chr set value %s", chr);
+  emit_line(DMS "stdout set value []");
+
   for (int mp = 0; data; data = data->next, mp++) {
     if (data->v) {
       Value addr;
@@ -317,6 +415,9 @@ static void define_utility_functions() {
   define_bin_func("safeloadbin", "loadbin", "run " SPS "ELVM elvm_mem_res 0");
   define_bin_func("loadbin", "loadbinsh", "store result score ELVM elvm_mem_res run " DGS "mem[0][0].v");
   define_shiftbin_func("loadbinsh", "safeloadbin");
+
+  define_chr_function(0, 256);
+  define_flush_function();
 }
 
 void target_mcfunction(Module* module) {
