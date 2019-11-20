@@ -6,7 +6,7 @@
 #define SPG "scoreboard players get "
 #define SPS "scoreboard players set "
 #define SPA "scoreboard players add "
-#define SPR "scoreboard players remove"
+#define SPR "scoreboard players remove "
 #define SPO "scoreboard players operation "
 #define DMS "data modify storage elvm:elvm "
 #define DGS "data get storage elvm:elvm "
@@ -85,7 +85,7 @@ static void define_shiftmem_func(const char* name, const char* mem_func) {
 
 static void define_safebin_func(const char* name, const char* bin_func, const char* notfound_operation) {
   mcf_emit_function_header(format("elvm:%s", name));
-  emit_line("execute if data storage elvm:elvm mem[0][0] run function %s", bin_func);
+  emit_line("execute if data storage elvm:elvm mem[0][0] run function elvm:%s", bin_func);
   emit_line("execute unless data storage elvm:elvm mem[0][0] ", notfound_operation);
 }
 
@@ -268,7 +268,7 @@ static void mcf_emit_inst(Inst* inst) {
       } else {
         mcf_emit_line(SPO "ELVM %s -= ELVM %s", dst, reg_names[inst->src.reg]);
       }
-      mcf_emit_line(SPO "ELVM %s %%= ELVM elvm_uint_max");
+      mcf_emit_line(SPO "ELVM %s %%= ELVM elvm_uint_max", dst);
       break;
     }
 
