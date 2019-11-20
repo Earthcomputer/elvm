@@ -402,22 +402,6 @@ static void emit_main_function(Data* data) {
   emit_line(SOA "elvm_uint_max dummy");
   emit_line(SPS "ELVM elvm_uint_max %d", UINT_MAX + 1);
 
-  char chr[1156];
-  int i = 0;
-  chr[i++] = '[';
-  for (int c = 0; c < 256; c++) {
-    if (c != 0)
-      chr[i++] = ',';
-    chr[i++] = '"';
-    char ch[3];
-    mcf_char_to_string((char)c, ch);
-    for (int j = 0; ch[j]; j++)
-      chr[i++] = ch[j];
-    chr[i++] = '"';
-  }
-  chr[i++] = ']';
-  chr[i] = '\0';
-  emit_line(DMS "chr set value %s", chr);
   emit_line(DMS "stdout set value []");
 
   for (int mp = 0; data; data = data->next, mp++) {
