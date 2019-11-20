@@ -21,7 +21,7 @@ static const char* prefix = "";
 static void mcf_emit_line(const char* line, ...) {
   va_list ap;
   va_start(ap, line);
-  emit_line("%s%s", prefix, line, ap);
+  emit_line("%s%s", prefix, format(line, ap));
   va_end(ap);
 }
 
